@@ -1,19 +1,35 @@
 # Bob the bot builder 🔨👷‍♂️
 
-Bob builds RLBots for the botpack
+Bob builds RLBots for the botpack. It reads a `bob.toml` from your bot's repository, builds the bot for Windows and Linux in Docker, and writes a folder with the binaries and config files that RLBot needs.
 
 ## Runtime dependencies
 
-* [Docker](https://www.docker.com/get-started/)
+- [Docker](https://www.docker.com/get-started/). Bob uses Linux containers.
 
-## Example Usage
+## Build a bot
 
-Building a bot usually has three steps:
+1. Put a `bob.toml` at the root of your bot's repository.
+2. Make sure Docker is running.
+3. Run `bob build bob.toml`.
 
-1. Make sure Docker is running.
-1. Make sure the bot's `bob.toml` is configured correctly.
-1. Run `bob build bob.toml`.
+The result is `bob_build/<project_name>/`. It holds the built binaries, your bot config with rewritten run commands, and the logo and loadout files.
 
-The result is a folder containing everything needed to distribute the bot.
+## Configure the build
 
-Find examples of `bob.toml` for different languages/projects here: https://github.com/swz-git/bob-example
+`bob.toml` has one `[[config]]` section per build. A Python bot needs four fields:
+
+```toml
+[[config]]
+project_name = "MyBot"
+bot_configs = ["src/bot.toml"]
+
+[config.builder_config]
+builder_type = "pyinstaller"
+entry_file = "bot.spec"
+```
+
+`project_name` sets the folder name in `bob_build/`. `bot_configs` lists the bot configs to package. `builder_type` chooses the build steps, and `entry_file` is the PyInstaller spec for that builder.
+
+See [Configuring bob.toml](docs/configuration.md) for every field, the other builders, and what Bob does to your bot config.
+
+Find example repositories for each language here: https://github.com/swz-git/bob-example
