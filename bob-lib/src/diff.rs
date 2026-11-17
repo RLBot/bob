@@ -2,7 +2,7 @@
 
 use anyhow::{Context, anyhow};
 use log::{error, info};
-use rapidhash::v3::rapidhash_v3;
+
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::with::AsString;
 use rkyv::{Archive, Deserialize, Serialize, rancor};
@@ -25,6 +25,54 @@ enum DataState {
     Identical,
     Patch(Box<[u8]>),
     Raw(Box<[u8]>),
+}
+
+fn file_state(old_file: Option<&[u8]>, new_file: Vec<u8>) -> DataState {
+    let Some(old_file) = old_file else {
+        return DataState::Raw(new_file.into());
+    };
+    if old_file == new_file {
+        return DataState::Identical;
+    }
+    if old_file.is_empty() || new_file.is_empty() {
+        return DataState::Raw(new_file.into());
+    }
+
+    // Use a fast level to find matches. DirDiff::ser compresses the full archive.
+    let mut encoder =
+        zstd::Encoder::with_ref_prefix(Vec::new(), -5, old_file).expect("Couldn't create encoder");
+
+    // The default window at level -5 is too small to reuse most of a large prefix.
+    // Limit the wider window to 128 MiB, which existing v3 readers accept.
+    const DEFAULT_WINDOW: usize = 1 << 19;
+    const MAX_WINDOW: usize = 1 << 27;
+    if old_file.len() >= DEFAULT_WINDOW {
+        let span = old_file
+            .len()
+            .saturating_add(new_file.len())
+            .min(MAX_WINDOW);
+        encoder
+            .window_log(span.next_power_of_two().ilog2())
+            .expect("Couldn't set patch window");
+        encoder
+            .long_distance_matching(true)
+            .expect("Couldn't enable long-distance matching");
+    }
+
+    encoder
+        .write_all(&new_file)
+        .expect("Couldn't write data to encoder");
+    let patch = encoder
+        .finish()
+        .expect("Couldn't create patch with encoder");
+
+    // Compare payload sizes before compressing the archive. This avoids a second
+    // compression pass for each file.
+    if patch.len() < new_file.len() {
+        DataState::Patch(patch.into())
+    } else {
+        DataState::Raw(new_file.into())
+    }
 }
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
@@ -81,7 +129,7 @@ impl DirDiff {
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
                     Err(e) => panic!("Error reading file: {:?}", e),
                 };
-                let old_file = fs::read(old_dir.join(&relative_path)).unwrap_or_default();
+                let old_file = fs::read(old_dir.join(&relative_path)).ok();
 
                 let flags = {
                     #[cfg(target_family = "unix")]
@@ -96,44 +144,9 @@ impl DirDiff {
                     None
                 };
 
-                if rapidhash_v3(&new_file) == rapidhash_v3(&old_file) {
-                    return Some(DirDiffEntry::File {
-                        path: relative_path,
-                        state: DataState::Identical,
-                        flags,
-                    });
-                }
-
-                if old_file.is_empty() {
-                    return Some(DirDiffEntry::File {
-                        path: relative_path,
-                        state: DataState::Raw(new_file.into()),
-                        flags,
-                    });
-                }
-
-                // use a negative compression level to avoid actually
-                // compressing the data here, we just want to reference the
-                // previous file (we just want to do the delta part here, and
-                // compress everything together later, during `.ser()` )
-                let level = -5;
-
-                let mut encoder =
-                    zstd::Encoder::with_ref_prefix(io::Cursor::new(Vec::new()), level, &old_file)
-                        .expect("Couldn't create encoder");
-
-                encoder
-                    .write_all(&new_file)
-                    .expect("Couldn't write data to encoder");
-
-                let patch = encoder
-                    .finish()
-                    .expect("Couldn't create patch with encoder")
-                    .into_inner();
-
                 Some(DirDiffEntry::File {
                     path: relative_path,
-                    state: DataState::Patch(patch.into()),
+                    state: file_state(old_file.as_deref(), new_file),
                     flags,
                 })
             })
