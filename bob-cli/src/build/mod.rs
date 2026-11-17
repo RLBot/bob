@@ -97,7 +97,7 @@ pub fn command_build(build_command: BuildCommand) -> anyhow::Result<()> {
             )
             .context(format!(
                 "Couldn't build bot tomls for project {}",
-                &build_config.project_name
+                build_config.project_name
             ))?;
         } else {
             let prev_project_info = prev_project_info.unwrap();

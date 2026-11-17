@@ -8,11 +8,11 @@ use divan::Bencher;
 use humansize::BINARY;
 use xz2::read::XzDecoder;
 
-const R23_PATH: LazyLock<PathBuf> =
+static R23_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(&env::temp_dir()).join("BOB_BENCH_R23"));
-const R24_PATH: LazyLock<PathBuf> =
+static R24_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(&env::temp_dir()).join("BOB_BENCH_R24"));
-const R25_PATH: LazyLock<PathBuf> =
+static R25_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(&env::temp_dir()).join("BOB_BENCH_R25"));
 
 fn download_and_extract(url: &str, path: &Path) -> Result<(), Box<dyn std::error::Error>> {

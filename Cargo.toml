@@ -1,20 +1,20 @@
 [workspace]
-package.version = "0.6.0"
+package.version = "0.6.1"
 package.edition = "2024"
 package.license-file = "LICENSE"
-members = ["bob-cli", "bob-lib"]
 resolver = "3"
+members = ["bob-cli", "bob-lib"]
 
-[profile.release]
-codegen-units = 1
-lto = true
-strip = true
+[workspace.dependencies]
+anyhow = "1.0.104"
+ignore = "0.4.34"
+log = "0.4.35"
+rapidhash = "4.5.1"
 
 [profile.dev]
 opt-level = 2
 
-[workspace.dependencies]
-anyhow = "1.0.89"
-rapidhash = "4.2.0"
-log = "0.4.22"
-ignore = "0.4.23"
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

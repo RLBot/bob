@@ -2,32 +2,29 @@
 name = "bob-cli"
 version.workspace = true
 edition.workspace = true
-license-file.workspace = true
-repository = "https://github.com/swz-git/bob"
 description = "Build tool for the rlbot v5 botpack"
+repository = "https://github.com/swz-git/bob"
+license-file.workspace = true
 
 [[bin]]
 name = "bob"
 path = "src/main.rs"
 
 [dependencies]
-bob-lib = { path = "../bob-lib" }
-chrono = "0.4.38"
-clap = { version = "4.5.7", features = ["derive"] }
-env_logger = "0.11.6"
-glob = "0.3.2"
-infer = "0.19.0"
-serde = { version = "1.0.210", features = ["derive"] }
-tar = "0.4.42"
-tinytemplate = "1.2.1"
-toml = "1.0.2"
-toml-datetime-compat = { version = "0.3.0", features = [
-    "chrono",
-    "serde_with",
-] }
-serde-value = "0.7.0"
-erased-serde = "0.4.6"
-rapidhash = { workspace = true }
 anyhow = { workspace = true }
+bob-lib = { path = "../bob-lib" }
+chrono = "0.4.45"
+clap = { version = "4.6.8", features = ["derive"] }
+env_logger = "0.11.11"
+erased-serde = "0.4.11"
+glob = "0.3.4"
 ignore = { workspace = true }
+infer = "0.22.0"
 log = { workspace = true }
+rapidhash = { workspace = true }
+serde = { version = "1.0.229", features = ["derive"] }
+serde-value = "0.7.0"
+tar = "0.4.46"
+tinytemplate = "1.2.1"
+toml = "1.2.1"
+toml-datetime-compat = { version = "0.3.0", features = ["chrono", "serde_with"] }
