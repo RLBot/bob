@@ -294,32 +294,24 @@ pub const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', MAGI
 
 impl DirDiff {
     pub fn ser(&self) -> Vec<u8> {
-        let mut ser = Vec::new();
-        ser.extend_from_slice(&MAGIC_BYTES);
+        let uncompressed_raw = rkyv::to_bytes::<rancor::Error>(self).unwrap();
+        let mut encoder =
+            zstd::Encoder::new(MAGIC_BYTES.to_vec(), 22).expect("Couldn't create final encoder");
 
-        let uncompressed_raw = &rkyv::to_bytes::<rancor::Error>(self).unwrap();
-
-        // level 22 here seems to perform better than 19 in terms of both time
-        // and size (~3x)
-        let mut encoder = zstd::Encoder::new(io::Cursor::new(Vec::new()), 22)
-            .expect("Couldn't create final encoder");
-
+        // The input length lets zstd use smaller compression tables for small patches.
+        encoder
+            .set_pledged_src_size(Some(uncompressed_raw.len() as u64))
+            .expect("Couldn't set archive size");
         encoder
             .multithread(available_parallelism().map(|x| x.get()).unwrap_or(4) as u32)
-            .expect("couldn't enable multithreading");
+            .expect("Couldn't enable multithreading");
 
         encoder
-            .write_all(uncompressed_raw)
+            .write_all(&uncompressed_raw)
             .expect("Couldn't write data to final encoder");
-
-        let compressed_raw = encoder
+        encoder
             .finish()
             .expect("Couldn't compress with final encoder")
-            .into_inner();
-
-        ser.extend_from_slice(&compressed_raw);
-
-        ser
     }
     pub fn check_compat(serialized: &[u8]) -> bool {
         serialized[0..MAGIC_BYTES.len()] == MAGIC_BYTES
