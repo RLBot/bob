@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     str::FromStr,
 };
 
@@ -64,6 +64,79 @@ macro_rules! builder_configs {
     };
 }
 
+/// A file or directory to copy into the build output.
+///
+/// A plain string or a table with `src` and optional `dest` both describe one entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct IncludeEntry {
+    pub src: PathBuf,
+    pub dest: Option<PathBuf>,
+}
+
+impl<'de> Deserialize<'de> for IncludeEntry {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Path(PathBuf),
+            Table {
+                src: PathBuf,
+                #[serde(default)]
+                dest: Option<PathBuf>,
+            },
+        }
+
+        match Raw::deserialize(d)? {
+            Raw::Path(src) => Ok(Self { src, dest: None }),
+            Raw::Table { src, dest } => Ok(Self { src, dest }),
+        }
+    }
+}
+
+fn validate_include_entries(
+    config: &builder_configs::Rust,
+    project_root: &Path,
+) -> anyhow::Result<()> {
+    for item in &config.include {
+        let src = project_root.join(&item.src);
+        let canonical_src = src
+            .canonicalize()
+            .with_context(|| format!("include source `{src:?}` doesn't exist"))?;
+        if !canonical_src.starts_with(project_root) {
+            return Err(anyhow::anyhow!(
+                "include source `{src:?}` is outside the project root"
+            ));
+        }
+
+        if let Some(dest) = &item.dest
+            && (dest.is_absolute()
+                || dest
+                    .components()
+                    .any(|c| c == Component::RootDir || c == Component::ParentDir))
+        {
+            return Err(anyhow::anyhow!(
+                "include destination `{dest:?}` must be relative and stay inside the output folder"
+            ));
+        }
+
+        for value in [Some(&item.src), item.dest.as_ref()].into_iter().flatten() {
+            let value = value
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("include path `{value:?}` is not valid UTF-8"))?;
+            if value
+                .chars()
+                .any(|c| matches!(c, '\'' | '\\' | '\n' | '\r'))
+            {
+                return Err(anyhow::anyhow!(
+                    "include path `{value:?}` contains a character that cannot be used in a Dockerfile"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 builder_configs!(
     // InternalName "toml_name"
     // |_self: builder_configs::InternalName, project_root: &Path|
@@ -77,10 +150,12 @@ builder_configs!(
         entry_file: PathBuf,
     },
     Rust "rust"
-    |_,_| Ok(include_str!("../dockerfiles/rust.Dockerfile"))
+    |s,r| { validate_include_entries(s, r)?; Ok(include_str!("../dockerfiles/rust.Dockerfile")) }
     => {
         bin_name: String,
         targets: Vec<String>,
+        #[serde(default)]
+        pub include: Vec<IncludeEntry>,
     },
     CSharp "csharp"
     |_,_| Ok(include_str!("../dockerfiles/csharp.Dockerfile"))
