@@ -71,6 +71,22 @@ bin_name = "my_bot"
 
 `targets` lists the Rust targets to build. `bin_name` must match the binary name in `Cargo.toml`.
 
+`include` lists files and folders to copy into the output. Use a plain string to keep the source name:
+
+```toml
+[config.builder_config]
+builder_type = "rust"
+targets = ["x86_64-pc-windows-gnu", "x86_64-unknown-linux-musl"]
+bin_name = "my_bot"
+include = [
+  "checkpoints",
+  { src = "other_thing" },
+  { src = "config/extra.toml", dest = "extra.toml" },
+]
+```
+
+Each entry copies one path into the output folder. A string, or a table with only `src`, keeps the source name. Set `dest` to rename the file or folder. `dest` is relative to the output folder. Paths are relative to `bob.toml`. Bob rejects sources outside the project and destinations that escape the output folder. Changing an included file triggers a new build.
+
 ### csharp
 
 Use this for C# bots. You do not need a Dockerfile.

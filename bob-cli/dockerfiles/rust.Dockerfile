@@ -18,6 +18,10 @@ RUN cargo build -r --target {target} --bin {bin_name}
 # {{ endfor }}
 RUN mkdir _BOB_OUT
 
+# {{ for item in include }}
+RUN mkdir -p "$(dirname './_BOB_OUT/{item.dest}')" && cp -r './{item.src}' './_BOB_OUT/{item.dest}'
+# {{ endfor }}
+
 # {{ for target in targets }}
 RUN mkdir _BOB_OUT/{target}
 RUN mv ./target/{target}/release/{bin_name}* ./_BOB_OUT/{target}/
